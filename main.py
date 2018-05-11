@@ -6,6 +6,7 @@ import boto3
 import socket
 from datetime import timedelta, datetime
 import time
+import urllib.request
 
 """
 TODO:
@@ -59,12 +60,13 @@ def getAllInstanceInfo(all_instance_info):
         all_instance_info.append(constract)
     for instance in ec2.instances.all():
         if config.name_tag in instance.tags[0].get('Value'):		# check if name/surname in tag
-            for host in all_instance_info:     
+            for host in all_instance_info:
                 if host[0] in instance.tags[0].get('Value'):        # check hostname in tag
                     host[3] = instance.id
                     host[4] = instance.state.get('Name')
                     host[5] = instance.public_ip_address
                     host[6] = instance.tags[0].get('Value')
+
     return all_instance_info
 
 					
@@ -74,17 +76,30 @@ def checkPorts(all_instance_info):
     """
     print("Checking for open ports (please wait [{} sec timeout]):".format(config.socket_timeout))
 
+	
+
+	
+	
     for host in all_instance_info:
         for port in config.scan_ports:
+            url = "http://" + str(host[1]) + ":" + str(port)
+            try: 
+                response = urllib.request.urlopen(url,timeout=config.socket_timeout)
+                if response.getcode() != 200:
+                    http_answer = TextColor.WARNING + str(response.getcode()) + TextColor.WHITE
+                else:
+                    http_answer = TextColor.GREEN + str(response.getcode()) + TextColor.WHITE
+            except: 
+                http_answer = TextColor.RED + "fail" + TextColor.WHITE
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.settimeout(config.socket_timeout)	
             result = sock.connect_ex((host[1], int(port)))
             if(result == 0):
-                text = TextColor.WHITE + "[" + TextColor.GREEN + "+" + TextColor.WHITE +"] Port open {}({}): {} ".format(host[0], host[1], port)
+                text = TextColor.WHITE + "[" + TextColor.GREEN + "+" + TextColor.WHITE +"] Port open {}({}): {}  \t HTTP answer: {}".format(host[0], host[1], port, http_answer)
                 print(text)
                 host[2].append(str(port)) 
             else:
-                text = TextColor.WHITE + "[" + TextColor.RED + "-" + TextColor.WHITE +"] Port open {}({}): {} ".format(host[0], host[1], port)
+                text = TextColor.WHITE + "[" + TextColor.RED + "-" + TextColor.WHITE +"] Port open {}({}): {}  \t HTTP answer: {}".format(host[0], host[1], port, http_answer)
                 print(text)
             sock.close()
     return all_instance_info
